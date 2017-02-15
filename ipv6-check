@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+set -e
+
+statefile=${1:-/var/cache/ipv6-check/ipv6-check.state}
+host=google.de
+
+mkdir --parents "$(dirname "$statefile")"
+
+if ping -6 -c 1 "$host"; then
+  printf '%s is reachable\n' "$host"
+  printf up > "$statefile"
+  exit 0
+fi
+
+laststate="$(< "$statefile")"
+printf down > "$statefile"
+
+if [[ "$laststate" == 'up' ]]; then
+  printf '%s is not reachable (first error)\n' "$host" 1>&2
+  exit 1
+fi
+
+printf '%s is still not reachable\n' "$host" 1>&2
+exit 2
