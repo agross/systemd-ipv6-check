@@ -2,22 +2,62 @@
 
 set -e
 
-statefile=${1:-/var/cache/ipv6-check/ipv6-check.state}
-host=google.de
+statefile="/var/cache/ipv6-check/ipv6-check.state"
+recipients="root"
+host="google.de"
+
+opt=
+while getopts ':s:h:r:' opt; do
+  case "$opt" in
+    s)
+      statefile="$OPTARG"
+      ;;
+
+    h)
+      host="$OPTARG"
+      ;;
+
+    r)
+      recipients="$OPTARG"
+      ;;
+
+    '?')
+      printf 'Invalid option: -%s\n' "$OPTARG"
+
+      usage=$(cat <<EOF
+%s [-h] [-r ROOT] COMMAND
+
+Check IPv6 connectivity by pinging a host, and optionally send email on connectivity change.
+
+Options:
+-s\tSpecify state file, default: $statefile
+-h\tSpecify host to ping, default: $host
+-r\tSpace-separated list of email recipients, default: $recipients
+EOF
+)
+
+      printf "$usage\n" "${0##*/}"
+      exit 1
+      ;;
+  esac
+done
 
 mkdir --parents "$(dirname "$statefile")"
+laststate="$(< "$statefile")"
 
 if ping -6 -c 1 "$host"; then
-  printf '%s is reachable\n' "$host"
+  printf '%s is reachable\n' "$host" | \
+    tee >(cat 1>&2) | \
+    $(if [[ -n "$recipients" && "$laststate" == 'down' ]]; then MAILRC=/dev/null mail -n -s "IPv6 check on $(hostname)" $recipients; fi)
   printf up > "$statefile"
   exit 0
 fi
 
-laststate="$(< "$statefile")"
 printf down > "$statefile"
-
 if [[ "$laststate" == 'up' ]]; then
-  printf '%s is not reachable (first error)\n' "$host" 1>&2
+  printf '%s is not reachable (first error)\n' "$host" | \
+    tee >(cat 1>&2) | \
+    $(if [[ -n "$recipients" ]]; then MAILRC=/dev/null mail -n -s "IPv6 check on $(hostname)" $recipients; fi)
   exit 1
 fi
 
