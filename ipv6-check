@@ -2,12 +2,13 @@
 
 set -e
 
-statefile="/var/cache/ipv6-check/ipv6-check.state"
-recipients="root"
-host="google.de"
+statefile='/var/cache/ipv6-check/ipv6-check.state'
+recipients='root'
+host='google.de'
+timeout=30
 
 opt=
-while getopts ':s:h:r:' opt; do
+while getopts ':s:h:r:t:' opt; do
   case "$opt" in
     s)
       statefile="$OPTARG"
@@ -21,11 +22,15 @@ while getopts ':s:h:r:' opt; do
       recipients="$OPTARG"
       ;;
 
+    t)
+      timeout="$OPTARG"
+      ;;
+
     '?')
       printf 'Invalid option: -%s\n' "$OPTARG"
 
       usage=$(cat <<EOF
-%s [-h] [-r ROOT] COMMAND
+%s [-s STATEFILE] [-h HOST] [-r RECIPIENTS] [-t TIMEOUT]
 
 Check IPv6 connectivity by pinging a host, and optionally send email on connectivity change.
 
@@ -33,6 +38,7 @@ Options:
 -s\tSpecify state file, default: $statefile
 -h\tSpecify host to ping, default: $host
 -r\tSpace-separated list of email recipients, default: $recipients
+-t\tTime in minutes to wait before sending notification after IPv6 becomes unreachble, default: $timeout
 EOF
 )
 
@@ -43,23 +49,60 @@ EOF
 done
 
 mkdir --parents "$(dirname "$statefile")"
-laststate="$(< "$statefile")"
+
+if [[ -f "$statefile" ]]; then
+  contents=($(< "$statefile"))
+  laststate="${contents[0]}"
+  timestamp=$((${contents[1]-0}))
+fi
+
+now=$(("$(date --utc +%s)"))
+
+notify() {
+  [[ -n "$recipients" && \
+     "$laststate" == '' || \
+     (
+       "$laststate" == 'down' && \
+       $((now - timestamp)) > $((timeout * 60))
+     )
+  ]]
+}
+
+send-email() {
+  MAILRC=/dev/null echo "$message" | \
+    mail -n -s "IPv6 check on $(hostname)" $recipients
+}
 
 if ping -6 -c 1 "$host"; then
-  printf '%s is reachable\n' "$host" | \
-    tee >(cat 1>&2) | \
-    $(if [[ -n "$recipients" && "$laststate" == 'down' ]]; then MAILRC=/dev/null mail -n -s "IPv6 check on $(hostname)" $recipients; fi)
-  printf up > "$statefile"
-  exit 0
+  exit_status=0
+
+  if [[ "$laststate" != 'up' ]]; then
+    printf 'up %s' "$now" > "$statefile"
+  fi
+
+  message=$(printf '%s is reachable\n' "$host")
+  echo "$message"
+
+  if notify; then
+    send-email
+  fi
+else
+  exit_status=2
+
+  if [[ "$laststate" != down* ]]; then
+    printf 'down %s' "$now" > "$statefile"
+    exit_status=1
+  fi
+
+  message=$(printf '%s is not reachable\n' "$host")
+  echo "$message"
+
+  if notify; then
+    send-email
+
+    [[ "$laststate" == '' ]] && ts="$now" || ts="$timestamp"
+    printf 'down-notified %s' "$ts" > "$statefile"
+  fi
 fi
 
-printf down > "$statefile"
-if [[ "$laststate" == 'up' ]]; then
-  printf '%s is not reachable (first error)\n' "$host" | \
-    tee >(cat 1>&2) | \
-    $(if [[ -n "$recipients" ]]; then MAILRC=/dev/null mail -n -s "IPv6 check on $(hostname)" $recipients; fi)
-  exit 1
-fi
-
-printf '%s is still not reachable\n' "$host" 1>&2
-exit 2
+exit $exit_status
