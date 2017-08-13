@@ -69,6 +69,8 @@ notify() {
 }
 
 send-email() {
+  echo 'Sending notification'
+
   MAILRC=/dev/null echo "$message" | \
     mail -n -s "IPv6 check on $(hostname)" $recipients
 }

@@ -129,6 +129,7 @@ teardown() {
 
   assert_failure 2
   assert_output --partial 'google.de is not reachable'
+  assert_output --partial 'Sending notification'
 
   assert grep --quiet 'down-notified 0' "$state"
   assert grep --quiet 'true' "$mail_called"
@@ -150,6 +151,7 @@ teardown() {
 
   assert_failure 2
   assert_output --partial 'google.de is not reachable'
+  refute_output --partial 'Sending notification'
 
   assert grep --quiet 'down-notified 0' "$state"
   refute grep --quiet 'true' "$mail_called"
