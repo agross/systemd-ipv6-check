@@ -95,7 +95,7 @@ else
   fi
 
   message=$(printf '%s is not reachable\n' "$host")
-  echo "$message"
+  >&2 echo "$message"
 
   if notify; then
     send-email
