@@ -72,7 +72,7 @@ send-email() {
   echo 'Sending notification'
 
   echo "$message" | \
-    mail -n -s "IPv6 check on $(hostname)" $recipients
+    mail -n -S sendwait -s "IPv6 check on $(hostname)" $recipients
 }
 
 if ping -6 -c 1 "$host"; then
