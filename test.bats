@@ -113,6 +113,30 @@ teardown() {
   refute grep --quiet 'true' "$mail_called"
 }
 
+@test 'Compares timestamps using math expression' {
+  error_time=0
+  now=90
+  timeout=180
+
+  state="$(mktemp)"
+  echo "down $error_time" > "$state"
+
+  mail_called="$(mktemp)"
+
+  stub ping 'false'
+  stub mail "echo true > '$mail_called'"
+  stub date "echo $now"
+
+  run ./ipv6-check -s "$state" -t $((timeout / 60))
+
+  assert_failure 2
+  assert_output --partial 'google.de is not reachable'
+  refute_output --partial 'Sending notification'
+
+  assert grep --quiet "down $error_time" "$state"
+  refute grep --quiet 'true' "$mail_called"
+}
+
 @test 'Ping failure after grace period with previous failure in state file' {
   timeout=10
 

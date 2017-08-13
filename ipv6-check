@@ -63,7 +63,7 @@ notify() {
      "$laststate" == '' || \
      (
        "$laststate" == 'down' && \
-       $((now - timestamp)) > $((timeout * 60))
+       $((now - timestamp)) -gt $((timeout * 60))
      )
   ]]
 }
