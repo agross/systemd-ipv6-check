@@ -27,7 +27,9 @@ teardown() {
   run ./ipv6-check -s "$state"
 
   assert_success
+
   assert_output --partial 'google.de is reachable'
+  assert_output --partial 'Sending notification'
 
   assert grep --quiet 'up 1' "$state"
   assert grep --quiet 'true' "$mail_called"
@@ -46,7 +48,9 @@ teardown() {
   run ./ipv6-check -s "$state"
 
   assert_success
+
   assert_output --partial 'google.de is reachable'
+  refute_output --partial 'Sending notification'
 
   assert grep --quiet 'up 0' "$state"
   refute grep --quiet 'true' "$mail_called"
@@ -65,7 +69,9 @@ teardown() {
   run ./ipv6-check -s "$state"
 
   assert_failure 1
+
   assert_output --partial 'google.de is not reachable'
+  assert_output --partial 'Sending notification'
 
   assert grep --quiet 'down-notified 1' "$state"
   assert grep --quiet 'true' "$mail_called"
@@ -86,7 +92,9 @@ teardown() {
   run ./ipv6-check -s "$state"
 
   assert_failure 1
+
   assert_output --partial 'google.de is not reachable'
+  refute_output --partial 'Sending notification'
 
   assert grep --quiet 'down 1' "$state"
   refute grep --quiet 'true' "$mail_called"
@@ -107,7 +115,9 @@ teardown() {
   run ./ipv6-check -s "$state" -t $timeout
 
   assert_failure 2
+
   assert_output --partial 'google.de is not reachable'
+  refute_output --partial 'Sending notification'
 
   assert grep --quiet 'down 0' "$state"
   refute grep --quiet 'true' "$mail_called"
@@ -130,6 +140,7 @@ teardown() {
   run ./ipv6-check -s "$state" -t $((timeout / 60))
 
   assert_failure 2
+
   assert_output --partial 'google.de is not reachable'
   refute_output --partial 'Sending notification'
 
@@ -152,6 +163,7 @@ teardown() {
   run ./ipv6-check -s "$state" -t $timeout
 
   assert_failure 2
+
   assert_output --partial 'google.de is not reachable'
   assert_output --partial 'Sending notification'
 
@@ -174,6 +186,7 @@ teardown() {
   run ./ipv6-check -s "$state" -t $timeout
 
   assert_failure 2
+
   assert_output --partial 'google.de is not reachable'
   refute_output --partial 'Sending notification'
 
@@ -196,7 +209,9 @@ teardown() {
   run ./ipv6-check -s "$state" -t $timeout
 
   assert_success
+
   assert_output --partial 'google.de is reachable'
+  refute_output --partial 'Sending notification'
 
   assert grep --quiet "up $succeeded_at" "$state"
   refute grep --quiet 'true' "$mail_called"
@@ -217,7 +232,32 @@ teardown() {
   run ./ipv6-check -s "$state" -t $timeout
 
   assert_success
+
   assert_output --partial 'google.de is reachable'
+  assert_output --partial 'Sending notification'
+
+  assert grep --quiet "up $succeeded_at" "$state"
+  assert grep --quiet 'true' "$mail_called"
+}
+
+@test 'Recovery after grace period with notification' {
+  timeout=10
+
+  state="$(mktemp)"
+  echo "down-notified 0" > "$state"
+
+  mail_called="$(mktemp)"
+
+  stub ping
+  stub mail "echo true > '$mail_called'"
+  stub date "echo $((timeout * 60 + 1))"
+
+  run ./ipv6-check -s "$state" -t $timeout
+
+  assert_success
+
+  assert_output --partial 'google.de is reachable'
+  assert_output --partial 'Sending notification'
 
   assert grep --quiet "up $succeeded_at" "$state"
   assert grep --quiet 'true' "$mail_called"

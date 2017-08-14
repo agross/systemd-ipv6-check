@@ -59,10 +59,14 @@ fi
 now=$(("$(date --utc +%s)"))
 
 notify() {
-  [[ -n "$recipients" && \
-     "$laststate" == '' || \
+  [[ -n "$recipients" &&
+     "$laststate" == '' ||
      (
-       "$laststate" == 'down' && \
+       "$laststate" == 'down-notified' &&
+       "$exit_status" == '0'
+     ) ||
+     (
+       "$laststate" == 'down' &&
        $((now - timestamp)) -gt $((timeout * 60))
      )
   ]]
