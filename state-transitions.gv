@@ -1,0 +1,14 @@
+digraph g {
+  rankdir=BT
+
+  not_reachable [label="not reachable"]
+  notified [label="not reachable (notified)"]
+
+  reachable -> reachable [label="update state"]
+  reachable -> not_reachable [label="update state"]
+
+  not_reachable -> reachable [label="update state"]
+  not_reachable -> notified [label="> timeout, email, update state"]
+
+  notified -> reachable [label="email, update state"]
+}
