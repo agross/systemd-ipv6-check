@@ -22,13 +22,14 @@ teardown() {
 
   stub ping
   stub mail "echo true > '$mail_called'"
-  stub date 'echo 1'
+  stub date '--utc +%s : echo 1' \
+            '--date=@1 : echo [test date]'
 
   run ./ipv6-check -s "$state"
 
   assert_success
 
-  assert_output --partial 'google.de is reachable'
+  assert_output --partial 'google.de is reachable since [test date]'
   assert_output --partial 'Sending notification'
 
   assert grep --quiet 'up 1' "$state"
@@ -43,13 +44,14 @@ teardown() {
 
   stub ping
   stub mail "echo true > '$mail_called'"
-  stub date 'echo 1'
+  stub date '--utc +%s : echo 1' \
+            '--date=@1 : echo [test date]'
 
   run ./ipv6-check -s "$state"
 
   assert_success
 
-  assert_output --partial 'google.de is reachable'
+  assert_output --partial 'google.de is reachable since [test date]'
   refute_output --partial 'Sending notification'
 
   assert grep --quiet 'up 0' "$state"
@@ -64,13 +66,16 @@ teardown() {
 
   stub ping 'false'
   stub mail "echo true > '$mail_called'"
-  stub date 'echo 1'
+  stub date '--utc +%s : echo 1' \
+            '--date=@1 : echo [test date]' \
+            '--date=@ : exit 1'
 
   run ./ipv6-check -s "$state"
 
   assert_failure 1
 
-  assert_output --partial 'google.de is not reachable'
+  assert_output --partial 'google.de is not reachable since [test date]'
+  assert_output --partial 'Last state unknown since unknown'
   assert_output --partial 'Sending notification'
 
   assert grep --quiet 'down-notified 1' "$state"
@@ -83,17 +88,19 @@ teardown() {
 
   mail_called="$(mktemp)"
 
-  stub mail "echo true > '$mail_called'"
-
   stub ping 'false'
   stub mail "echo true > '$mail_called'"
-  stub date 'echo 1'
+  stub date '--utc +%s : echo 1' \
+            '--date=@1 : echo [test date]' \
+            '--date=@0 : echo [up date]'
+
 
   run ./ipv6-check -s "$state"
 
   assert_failure 1
 
-  assert_output --partial 'google.de is not reachable'
+  assert_output --partial 'google.de is not reachable since [test date]'
+  assert_output --partial 'Last state up since [up date]'
   refute_output --partial 'Sending notification'
 
   assert grep --quiet 'down 1' "$state"
@@ -110,13 +117,16 @@ teardown() {
 
   stub ping 'false'
   stub mail "echo true > '$mail_called'"
-  stub date "echo $((timeout * 60))"
+  stub date "--utc +%s : echo $((timeout * 60))" \
+            "--date=@$((timeout * 60)) : echo [test date]" \
+            '--date=@0 : echo [down date]'
 
   run ./ipv6-check -s "$state" -t $timeout
 
   assert_failure 2
 
-  assert_output --partial 'google.de is not reachable'
+  assert_output --partial 'google.de is not reachable since [test date]'
+  assert_output --partial 'Last state down since [down date]'
   refute_output --partial 'Sending notification'
 
   assert grep --quiet 'down 0' "$state"
@@ -124,27 +134,30 @@ teardown() {
 }
 
 @test 'Compares timestamps using math expression' {
-  error_time=0
+  first_error=0
   now=90
   timeout=180
 
   state="$(mktemp)"
-  echo "down $error_time" > "$state"
+  echo "down $first_error" > "$state"
 
   mail_called="$(mktemp)"
 
   stub ping 'false'
   stub mail "echo true > '$mail_called'"
-  stub date "echo $now"
+  stub date "--utc +%s : echo $now" \
+            "--date=@$now : echo [test date]" \
+            "--date=@$first_error : echo [down date]"
 
   run ./ipv6-check -s "$state" -t $((timeout / 60))
 
   assert_failure 2
 
-  assert_output --partial 'google.de is not reachable'
+  assert_output --partial 'google.de is not reachable since [test date]'
+  assert_output --partial 'Last state down since [down date]'
   refute_output --partial 'Sending notification'
 
-  assert grep --quiet "down $error_time" "$state"
+  assert grep --quiet "down $first_error" "$state"
   refute grep --quiet 'true' "$mail_called"
 }
 
@@ -158,13 +171,17 @@ teardown() {
 
   stub ping 'false'
   stub mail "echo true > '$mail_called'"
-  stub date "echo $((timeout * 60 + 1))"
+  stub date "--utc +%s : echo $((timeout * 60 + 1))" \
+            "--date=@$((timeout * 60 + 1)) : echo [test date]" \
+            '--date=@0 : echo [down date]'
+
 
   run ./ipv6-check -s "$state" -t $timeout
 
   assert_failure 2
 
-  assert_output --partial 'google.de is not reachable'
+  assert_output --partial 'google.de is not reachable since [test date]'
+  assert_output --partial 'Last state down since [down date]'
   assert_output --partial 'Sending notification'
 
   assert grep --quiet 'down-notified 0' "$state"
@@ -181,13 +198,16 @@ teardown() {
 
   stub ping 'false'
   stub mail "echo true > '$mail_called'"
-  stub date "echo $((timeout * 60 + 1))"
+  stub date "--utc +%s : echo $((timeout * 60 + 1))" \
+            "--date=@$((timeout * 60 + 1)) : echo [test date]" \
+            '--date=@0 : echo [down date]'
 
   run ./ipv6-check -s "$state" -t $timeout
 
   assert_failure 2
 
-  assert_output --partial 'google.de is not reachable'
+  assert_output --partial 'google.de is not reachable since [test date]'
+  assert_output --partial 'Last state down-notified since [down date]'
   refute_output --partial 'Sending notification'
 
   assert grep --quiet 'down-notified 0' "$state"
@@ -204,13 +224,14 @@ teardown() {
 
   stub ping
   stub mail "echo true > '$mail_called'"
-  stub date "echo $((timeout * 60))"
+  stub date "--utc +%s : echo $((timeout * 60))" \
+            "--date=@$((timeout * 60)) : echo [test date]"
 
   run ./ipv6-check -s "$state" -t $timeout
 
   assert_success
 
-  assert_output --partial 'google.de is reachable'
+  assert_output --partial 'google.de is reachable since [test date]'
   refute_output --partial 'Sending notification'
 
   assert grep --quiet "up $succeeded_at" "$state"
@@ -227,13 +248,14 @@ teardown() {
 
   stub ping
   stub mail "echo true > '$mail_called'"
-  stub date "echo $((timeout * 60 + 1))"
+  stub date "--utc +%s : echo $((timeout * 60 + 1))" \
+            "--date=@$((timeout * 60 + 1)) : echo [test date]"
 
   run ./ipv6-check -s "$state" -t $timeout
 
   assert_success
 
-  assert_output --partial 'google.de is reachable'
+  assert_output --partial 'google.de is reachable since [test date]'
   assert_output --partial 'Sending notification'
 
   assert grep --quiet "up $succeeded_at" "$state"
@@ -250,13 +272,14 @@ teardown() {
 
   stub ping
   stub mail "echo true > '$mail_called'"
-  stub date "echo $((timeout * 60 + 1))"
+  stub date "--utc +%s : echo $((timeout * 60 + 1))" \
+            "--date=@$((timeout * 60 + 1)) : echo [test date]"
 
   run ./ipv6-check -s "$state" -t $timeout
 
   assert_success
 
-  assert_output --partial 'google.de is reachable'
+  assert_output --partial 'google.de is reachable since [test date]'
   assert_output --partial 'Sending notification'
 
   assert grep --quiet "up $succeeded_at" "$state"

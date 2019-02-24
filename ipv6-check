@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 statefile='/var/cache/ipv6-check/ipv6-check.state'
 recipients='root'
@@ -50,6 +50,9 @@ done
 
 mkdir --parents "$(dirname "$statefile")"
 
+laststate=
+timestamp=
+
 if [[ -f "$statefile" ]]; then
   contents=($(< "$statefile"))
   laststate="${contents[0]}"
@@ -73,6 +76,8 @@ notify() {
 }
 
 send-email() {
+  message="${1?Need message}"
+
   echo 'Sending notification'
 
   echo "$message" | \
@@ -86,11 +91,13 @@ if ping -6 -c 1 "$host"; then
     printf 'up %s' "$now" > "$statefile"
   fi
 
-  message=$(printf '%s is reachable\n' "$host")
+  message=$(printf '%s is reachable since %s\n' \
+                   "$host" \
+                   "$(date --date=@$now)")
   echo "$message"
 
   if notify; then
-    send-email
+    send-email "$message"
   fi
 else
   exit_status=2
@@ -100,11 +107,15 @@ else
     exit_status=1
   fi
 
-  message=$(printf '%s is not reachable\n' "$host")
+  message=$(printf '%s is not reachable since %s\nLast state %s since %s\n' \
+                   "$host" \
+                   "$(date --date=@$now)" \
+                   "${laststate:-unknown}" \
+                   "$(date --date=@$timestamp || echo unknown)")
   >&2 echo "$message"
 
   if notify; then
-    send-email
+    send-email "$message"
 
     [[ "$laststate" == '' ]] && ts="$now" || ts="$timestamp"
     printf 'down-notified %s' "$ts" > "$statefile"
