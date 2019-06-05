@@ -6,9 +6,10 @@ statefile='/var/cache/ipv6-check/ipv6-check.state'
 recipients='root'
 host='google.de'
 timeout=30
+reboot=
 
 opt=
-while getopts ':s:h:r:t:' opt; do
+while getopts ':s:h:r:t:p' opt; do
   case "$opt" in
     s)
       statefile="$OPTARG"
@@ -26,11 +27,15 @@ while getopts ':s:h:r:t:' opt; do
       timeout="$OPTARG"
       ;;
 
+    p)
+      reboot=true
+      ;;
+
     '?')
       printf 'Invalid option: -%s\n' "$OPTARG"
 
       usage=$(cat <<EOF
-%s [-s STATEFILE] [-h HOST] [-r RECIPIENTS] [-t TIMEOUT]
+%s [-s STATEFILE] [-h HOST] [-r RECIPIENTS] [-t TIMEOUT] [-p]
 
 Check IPv6 connectivity by pinging a host, and optionally send email on connectivity change.
 
@@ -38,7 +43,8 @@ Options:
 -s\tSpecify state file, default: $statefile
 -h\tSpecify host to ping, default: $host
 -r\tSpace-separated list of email recipients, default: $recipients
--t\tTime in minutes to wait before sending notification after IPv6 becomes unreachble, default: $timeout
+-t\tTime in minutes to wait before sending notification after IPv6 becomes unreachable, default: $timeout
+-p\tReboot machine after sending notification
 EOF
 )
 
@@ -61,6 +67,12 @@ fi
 
 now=$(("$(date --utc +%s)"))
 
+timeout() {
+  [[ "$laststate" == 'down' &&
+     $((now - timestamp)) -gt $((timeout * 60))
+  ]]
+}
+
 notify() {
   [[ -n "$recipients" &&
      "$laststate" == '' ||
@@ -68,10 +80,7 @@ notify() {
        "$laststate" == 'down-notified' &&
        "$exit_status" == '0'
      ) ||
-     (
-       "$laststate" == 'down' &&
-       $((now - timestamp)) -gt $((timeout * 60))
-     )
+     $(timeout; echo $?) -eq 0
   ]]
 }
 
@@ -120,6 +129,8 @@ else
     [[ "$laststate" == '' ]] && ts="$now" || ts="$timestamp"
     printf 'down-notified %s' "$ts" > "$statefile"
   fi
+
+   timeout && [[ -n "$reboot" ]] && systemctl reboot
 fi
 
 exit $exit_status
