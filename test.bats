@@ -32,7 +32,8 @@ teardown() {
 
   assert_success
 
-  assert_output --partial 'google.de is reachable since [test date]'
+  assert_output --partial 'Hosts are reachable since [test date]'
+  assert_output --partial 'google.de'
   assert_output --partial 'Sending notification'
 
   assert grep --quiet 'up 1' "$state"
@@ -57,7 +58,8 @@ teardown() {
 
   assert_success
 
-  assert_output --partial 'google.de is reachable since [test date]'
+  assert_output --partial 'Hosts are reachable since [test date]'
+  assert_output --partial 'google.de'
   refute_output --partial 'Sending notification'
 
   assert grep --quiet 'up 0' "$state"
@@ -83,8 +85,9 @@ teardown() {
 
   assert_failure 1
 
-  assert_output --partial 'google.de is not reachable since [test date]'
+  assert_output --partial 'Hosts are not reachable since [test date]'
   assert_output --partial 'Last state unknown since unknown'
+  assert_output --partial 'google.de'
   assert_output --partial 'Sending notification'
 
   assert grep --quiet 'down-notified 1' "$state"
@@ -110,8 +113,9 @@ teardown() {
 
   assert_failure 1
 
-  assert_output --partial 'google.de is not reachable since [test date]'
+  assert_output --partial 'Hosts are not reachable since [test date]'
   assert_output --partial 'Last state up since [up date]'
+  assert_output --partial 'google.de'
   refute_output --partial 'Sending notification'
 
   assert grep --quiet 'down 1' "$state"
@@ -139,8 +143,9 @@ teardown() {
 
   assert_failure 2
 
-  assert_output --partial 'google.de is not reachable since [test date]'
+  assert_output --partial 'Hosts are not reachable since [test date]'
   assert_output --partial 'Last state down since [down date]'
+  assert_output --partial 'google.de'
   refute_output --partial 'Sending notification'
 
   assert grep --quiet 'down 0' "$state"
@@ -170,8 +175,9 @@ teardown() {
 
   assert_failure 2
 
-  assert_output --partial 'google.de is not reachable since [test date]'
+  assert_output --partial 'Hosts are not reachable since [test date]'
   assert_output --partial 'Last state down since [down date]'
+  assert_output --partial 'google.de'
   refute_output --partial 'Sending notification'
 
   assert grep --quiet "down $first_error" "$state"
@@ -199,8 +205,9 @@ teardown() {
 
   assert_failure 2
 
-  assert_output --partial 'google.de is not reachable since [test date]'
+  assert_output --partial 'Hosts are not reachable since [test date]'
   assert_output --partial 'Last state down since [down date]'
+  assert_output --partial 'google.de'
   assert_output --partial 'Sending notification'
 
   assert grep --quiet 'down-notified 0' "$state"
@@ -228,8 +235,9 @@ teardown() {
 
   assert_failure 2
 
-  assert_output --partial 'google.de is not reachable since [test date]'
+  assert_output --partial 'Hosts are not reachable since [test date]'
   assert_output --partial 'Last state down since [down date]'
+  assert_output --partial 'google.de'
   assert_output --partial 'Sending notification'
 
   assert grep --quiet 'down-notified 0' "$state"
@@ -257,8 +265,9 @@ teardown() {
 
   assert_failure 2
 
-  assert_output --partial 'google.de is not reachable since [test date]'
+  assert_output --partial 'Hosts are not reachable since [test date]'
   assert_output --partial 'Last state down-notified since [down date]'
+  assert_output --partial 'google.de'
   refute_output --partial 'Sending notification'
 
   assert grep --quiet 'down-notified 0' "$state"
@@ -285,7 +294,8 @@ teardown() {
 
   assert_success
 
-  assert_output --partial 'google.de is reachable since [test date]'
+  assert_output --partial 'Hosts are reachable since [test date]'
+  assert_output --partial 'google.de'
   refute_output --partial 'Sending notification'
 
   assert grep --quiet "up $succeeded_at" "$state"
@@ -312,7 +322,8 @@ teardown() {
 
   assert_success
 
-  assert_output --partial 'google.de is reachable since [test date]'
+  assert_output --partial 'Hosts are reachable since [test date]'
+  assert_output --partial 'google.de'
   assert_output --partial 'Sending notification'
 
   assert grep --quiet "up $succeeded_at" "$state"
@@ -339,10 +350,66 @@ teardown() {
 
   assert_success
 
-  assert_output --partial 'google.de is reachable since [test date]'
+  assert_output --partial 'Hosts are reachable since [test date]'
+  assert_output --partial 'google.de'
   assert_output --partial 'Sending notification'
 
   assert grep --quiet "up $succeeded_at" "$state"
+  assert grep --quiet 'true' "$mail_called"
+  refute grep --quiet 'true' "$systemctl_called"
+}
+
+@test 'Supports multiple hosts' {
+  state="$(mktemp)"
+  rm "$state"
+
+  mail_called="$(mktemp)"
+  systemctl_called="$(mktemp)"
+
+  stub ping
+  stub mail "echo true > '$mail_called'"
+  stub date '--utc +%s : echo 1' \
+            '--date=@1 : echo [test date]'
+  stub systemctl "echo true > '$systemctl_called'"
+
+  run ./ipv6-check -s "$state" -p -h 'first second'
+
+  assert_success
+
+  assert_output --partial 'Hosts are reachable since [test date]'
+  assert_output --partial 'first'
+  assert_output --partial 'second'
+  assert_output --partial 'Sending notification'
+
+  assert grep --quiet 'up 1' "$state"
+  assert grep --quiet 'true' "$mail_called"
+  refute grep --quiet 'true' "$systemctl_called"
+}
+
+@test 'Considers any host up like all hosts up' {
+  state="$(mktemp)"
+  rm "$state"
+
+  mail_called="$(mktemp)"
+  systemctl_called="$(mktemp)"
+
+  stub ping '-6 -c 1 first : exit 0' \
+            '-6 -c 1 second : exit 1'
+  stub mail "echo true > '$mail_called'"
+  stub date '--utc +%s : echo 1' \
+            '--date=@1 : echo [test date]'
+  stub systemctl "echo true > '$systemctl_called'"
+
+  run ./ipv6-check -s "$state" -p -h 'first second'
+
+  assert_success
+
+  assert_output --partial 'Hosts are reachable since [test date]'
+  assert_output --partial 'first'
+  assert_output --partial 'second'
+  assert_output --partial 'Sending notification'
+
+  assert grep --quiet 'up 1' "$state"
   assert grep --quiet 'true' "$mail_called"
   refute grep --quiet 'true' "$systemctl_called"
 }
