@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
 exec "$(dirname "${BASH_SOURCE[0]}")/connectivity-check" \
-     -6 \
-     -s /var/cache/ipv6-check/ipv6-check.state \
+     -4 \
+     -s /var/cache/ipv6-check/ipv4-check.state \
      "$@"

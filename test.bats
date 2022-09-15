@@ -28,7 +28,7 @@ teardown() {
             '--date=@1 : echo [test date]'
   stub systemctl "echo true > '$systemctl_called'"
 
-  run ./ipv6-check -s "$state" -p
+  run ./connectivity-check -s "$state" -p
 
   assert_success
 
@@ -54,7 +54,7 @@ teardown() {
             '--date=@1 : echo [test date]'
   stub systemctl "echo true > '$systemctl_called'"
 
-  run ./ipv6-check -s "$state" -p
+  run ./connectivity-check -s "$state" -p
 
   assert_success
 
@@ -81,7 +81,7 @@ teardown() {
             '--date=@ : exit 1'
   stub systemctl "echo true > '$systemctl_called'"
 
-  run ./ipv6-check -s "$state" -p
+  run ./connectivity-check -s "$state" -p
 
   assert_failure 1
 
@@ -109,7 +109,7 @@ teardown() {
             '--date=@0 : echo [up date]'
   stub systemctl "echo true > '$systemctl_called'"
 
-  run ./ipv6-check -s "$state" -p
+  run ./connectivity-check -s "$state" -p
 
   assert_failure 1
 
@@ -139,7 +139,7 @@ teardown() {
             '--date=@0 : echo [down date]'
   stub systemctl "echo true > '$systemctl_called'"
 
-  run ./ipv6-check -s "$state" -t $timeout -p
+  run ./connectivity-check -s "$state" -t $timeout -p
 
   assert_failure 2
 
@@ -171,7 +171,7 @@ teardown() {
             "--date=@$first_error : echo [down date]"
   stub systemctl "echo true > '$systemctl_called'"
 
-  run ./ipv6-check -s "$state" -t $((timeout / 60)) -p
+  run ./connectivity-check -s "$state" -t $((timeout / 60)) -p
 
   assert_failure 2
 
@@ -201,7 +201,7 @@ teardown() {
             '--date=@0 : echo [down date]'
   stub systemctl "echo true > '$systemctl_called'"
 
-  run ./ipv6-check -s "$state" -t $timeout
+  run ./connectivity-check -s "$state" -t $timeout
 
   assert_failure 2
 
@@ -231,7 +231,7 @@ teardown() {
             '--date=@0 : echo [down date]'
   stub systemctl "echo true > '$systemctl_called'"
 
-  run ./ipv6-check -s "$state" -t $timeout -p
+  run ./connectivity-check -s "$state" -t $timeout -p
 
   assert_failure 2
 
@@ -261,7 +261,7 @@ teardown() {
             '--date=@0 : echo [down date]'
   stub systemctl "echo true > '$systemctl_called'"
 
-  run ./ipv6-check -s "$state" -t $timeout -p
+  run ./connectivity-check -s "$state" -t $timeout -p
 
   assert_failure 2
 
@@ -290,7 +290,7 @@ teardown() {
             "--date=@$((timeout * 60)) : echo [test date]"
   stub systemctl "echo true > '$systemctl_called'"
 
-  run ./ipv6-check -s "$state" -t $timeout -p
+  run ./connectivity-check -s "$state" -t $timeout -p
 
   assert_success
 
@@ -318,7 +318,7 @@ teardown() {
             "--date=@$((timeout * 60 + 1)) : echo [test date]"
   stub systemctl "echo true > '$systemctl_called'"
 
-  run ./ipv6-check -s "$state" -t $timeout -p
+  run ./connectivity-check -s "$state" -t $timeout -p
 
   assert_success
 
@@ -346,7 +346,7 @@ teardown() {
             "--date=@$((timeout * 60 + 1)) : echo [test date]"
   stub systemctl "echo true > '$systemctl_called'"
 
-  run ./ipv6-check -s "$state" -t $timeout -p
+  run ./connectivity-check -s "$state" -t $timeout -p
 
   assert_success
 
@@ -372,7 +372,7 @@ teardown() {
             '--date=@1 : echo [test date]'
   stub systemctl "echo true > '$systemctl_called'"
 
-  run ./ipv6-check -s "$state" -p -h 'first second'
+  run ./connectivity-check -s "$state" -p -h 'first second'
 
   assert_success
 
@@ -393,14 +393,14 @@ teardown() {
   mail_called="$(mktemp)"
   systemctl_called="$(mktemp)"
 
-  stub ping '-6 -c 1 first : exit 0' \
-            '-6 -c 1 second : exit 1'
+  stub ping '-c 1 first : exit 0' \
+            '-c 1 second : exit 1'
   stub mail "echo true > '$mail_called'"
   stub date '--utc +%s : echo 1' \
             '--date=@1 : echo [test date]'
   stub systemctl "echo true > '$systemctl_called'"
 
-  run ./ipv6-check -s "$state" -p -h 'first second'
+  run ./connectivity-check -s "$state" -p -h 'first second'
 
   assert_success
 

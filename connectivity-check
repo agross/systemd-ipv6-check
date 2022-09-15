@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+statefile='/var/cache/ipv6-check/connectivity-check.state'
+ping_args=()
+recipients='root'
+hosts=(google.de)
+timeout=30
+reboot=
+
+opt=
+while getopts ':46s:h:r:t:p' opt; do
+  case "$opt" in
+    4|6)
+      ping_args=(-"$opt")
+      ;;
+
+    s)
+      statefile="$OPTARG"
+      ;;
+
+    h)
+      IFS=' ' read -r -a hosts <<< "$OPTARG"
+      ;;
+
+    r)
+      recipients="$OPTARG"
+      ;;
+
+    t)
+      timeout="$OPTARG"
+      ;;
+
+    p)
+      reboot=true
+      ;;
+
+    '?')
+      printf 'Invalid option: -%s\n' "$OPTARG"
+
+      usage=$(cat <<EOF
+%s [-4|-6] [-s STATEFILE] [-h HOSTS] [-r RECIPIENTS] [-t TIMEOUT] [-p]
+
+Check IPv6 connectivity by pinging hosts, and optionally send email on
+connectivity change.
+
+Connectivity is considered down only if all hosts cannot be pinged. This
+prevents false positives when only a single pinged host is unreachable.
+
+Options:
+-4\tUse ping -4
+-6\tUse ping -6
+-s\tSpecify state file, default: $statefile
+-h\tSpace-separated list of hosts to ping, default: $hosts
+-r\tSpace-separated list of email recipients, default: $recipients
+-t\tTime in minutes to wait before sending notification after
+\tconnectitity is down, default: $timeout
+-p\tReboot machine after sending notification
+EOF
+)
+
+      printf "$usage\n" "${0##*/}"
+      exit 1
+      ;;
+  esac
+done
+
+mkdir --parents "$(dirname "$statefile")"
+
+laststate=
+timestamp=
+
+if [[ -f "$statefile" ]]; then
+  contents=($(< "$statefile"))
+  laststate="${contents[0]}"
+  timestamp=$((${contents[1]-0}))
+fi
+
+now=$(("$(date --utc +%s)"))
+
+timeout() {
+  [[ "$laststate" == 'down' &&
+     $((now - timestamp)) -gt $((timeout * 60))
+  ]]
+}
+
+notify() {
+  [[ -n "$recipients" &&
+     "$laststate" == '' ||
+     (
+       "$laststate" == 'down-notified' &&
+       "$exit_status" == '0'
+     ) ||
+     $(timeout; echo $?) -eq 0
+  ]]
+}
+
+send-email() {
+  message="${1?Need message}"
+
+  echo 'Sending notification'
+
+  printf '%s\nUsed arguments for ping: %s' "$message" "${ping_args[*]}" | \
+    mail -n -S sendwait -s "Connectivity check on $(hostname)" $recipients
+}
+
+failed_hosts=()
+
+for host in "${hosts[@]}"; do
+  if ! ping "${ping_args[@]}" -c 1 "$host"; then
+    failed_hosts+=("$host")
+  fi
+done
+
+if (( ${#failed_hosts[@]} < ${#hosts[@]} )); then
+  exit_status=0
+
+  if [[ "$laststate" != 'up' ]]; then
+    printf 'up %s' "$now" > "$statefile"
+  fi
+
+  printf -v hosts '%s\n' "${hosts[@]}"
+
+  printf -v message 'Hosts are reachable since %s\n\n%s' \
+                    "$(date --date=@$now)" \
+                    "$hosts"
+
+  echo "$message"
+
+  if notify; then
+    send-email "$message"
+  fi
+
+  exit $exit_status
+fi
+
+exit_status=2
+
+if [[ "$laststate" != down* ]]; then
+  printf 'down %s' "$now" > "$statefile"
+  exit_status=1
+fi
+
+printf -v hosts '%s\n' "${failed_hosts[@]}"
+
+printf -v message 'Hosts are not reachable since %s\nLast state %s since %s\n\n%s' \
+                  "$(date --date=@$now)" \
+                  "${laststate:-unknown}" \
+                  "$(date --date=@$timestamp || echo unknown)" \
+                  "$hosts"
+>&2 echo "$message"
+
+if notify; then
+  send-email "$message"
+
+  [[ "$laststate" == '' ]] && ts="$now" || ts="$timestamp"
+  printf 'down-notified %s' "$ts" > "$statefile"
+fi
+
+timeout && [[ -n "$reboot" ]] && systemctl reboot
+
+exit $exit_status

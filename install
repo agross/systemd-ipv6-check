@@ -4,7 +4,7 @@ set -e
 
 script_path="$(dirname "$(readlink --canonicalize-existing "$0")")"
 
-for unit in ipv6-check.service ipv6-check.timer; do
+for unit in *.service *.timer; do
   file="$script_path/$unit"
 
   printf "Linking %s\n" "$file"

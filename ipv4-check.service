@@ -1,0 +1,10 @@
+[Unit]
+Description=Check whether IPv4 is working
+
+[Service]
+Type=oneshot
+# Returned on subsequent errors. The first error causes exit status 1.
+SuccessExitStatus=2
+
+# ExecStart= needs to be configured via systemctl edit ipv4-check.service.
+# ExecStart=/usr/local/src/systemd-ipv6-check/ipv4-check

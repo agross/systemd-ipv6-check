@@ -1,0 +1,9 @@
+[Unit]
+Description=Check whether IPv4 is working
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
