@@ -147,7 +147,7 @@ printf -v hosts '%s\n' "${failed_hosts[@]}"
 printf -v message 'Hosts are not reachable since %s\nLast state %s since %s\n\n%s' \
                   "$(date --date=@$now)" \
                   "${laststate:-unknown}" \
-                  "$(date --date=@$timestamp || echo unknown)" \
+                  "$(date --date=@$timestamp 2> /dev/null || echo unknown)" \
                   "$hosts"
 >&2 echo "$message"
 
